@@ -402,37 +402,19 @@ with col_out:
     with r_col1:
         st.markdown("**Negative Moments (Zug oben)**")
         st.metric("M_Rd⁻", f"{res.neg_moment.m_rd_knm_m:.2f} kNm/m")
-        st.caption(
-            f"**A_s,Top:** `{res.as_top_total_cm2_m:.2f} cm²/m`  
-"
-            f"**d_Top:** `{res.d_top_mm:.1f} mm`  
-" if res.d_top_mm else f"**d_Top:** `{inp_obj.h_mm:.1f} mm`  
-"
-        )
-        st.write(
-            f"ε_Top: `{res.neg_moment.eps_top_permille:.3f} ‰`  
-"
-            f"ε_Bottom: `{res.neg_moment.eps_bottom_permille:.3f} ‰`  
-"
-            f"x_Druckzone: `{res.neg_moment.x_mm:.1f} mm`"
-        )
+        d_top_val = res.d_top_mm if res.d_top_mm else inp_obj.h_mm
+        st.caption(f"**A_s,Top:** `{res.as_top_total_cm2_m:.2f} cm²/m` | **d_Top:** `{d_top_val:.1f} mm`")
+        st.write(f"ε_Top: `{res.neg_moment.eps_top_permille:.3f} ‰`")
+        st.write(f"ε_Bottom: `{res.neg_moment.eps_bottom_permille:.3f} ‰`")
+        st.write(f"x_Druckzone: `{res.neg_moment.x_mm:.1f} mm`")
     with r_col2:
         st.markdown("**Positive Moments (Zug unten)**")
         st.metric("M_Rd⁺", f"{res.pos_moment.m_rd_knm_m:.2f} kNm/m")
-        st.caption(
-            f"**A_s,Bottom:** `{res.as_bottom_total_cm2_m:.2f} cm²/m`  
-"
-            f"**d_Bottom:** `{res.d_bottom_mm:.1f} mm`  
-" if res.d_bottom_mm else f"**d_Bottom:** `{inp_obj.h_mm:.1f} mm`  
-"
-        )
-        st.write(
-            f"ε_Top: `{res.pos_moment.eps_top_permille:.3f} ‰`  
-"
-            f"ε_Bottom: `{res.pos_moment.eps_bottom_permille:.3f} ‰`  
-"
-            f"x_Druckzone: `{res.pos_moment.x_mm:.1f} mm`"
-        )
+        d_bot_val = res.d_bottom_mm if res.d_bottom_mm else inp_obj.h_mm
+        st.caption(f"**A_s,Bottom:** `{res.as_bottom_total_cm2_m:.2f} cm²/m` | **d_Bottom:** `{d_bot_val:.1f} mm`")
+        st.write(f"ε_Top: `{res.pos_moment.eps_top_permille:.3f} ‰`")
+        st.write(f"ε_Bottom: `{res.pos_moment.eps_bottom_permille:.3f} ‰`")
+        st.write(f"x_Druckzone: `{res.pos_moment.x_mm:.1f} mm`")
     with r_col3:
         st.markdown("**Äquivalenzbewehrung (ohne SF)**")
         st.write(
@@ -442,13 +424,9 @@ with col_out:
             f"**A_s,Bottom,equiv:** `{res.as_bottom_equiv_cm2_m:.2f} cm²/m`" if res.as_bottom_equiv_cm2_m else "**A_s,Bottom,equiv:** `n.a.`"
         )
         st.markdown("---")
-        st.write(
-            f"**f_ctd,L1:** `{res.f_ctd_L1:.3f} N/mm²`  
-"
-            f"**f_ctd,L2:** `{res.f_ctd_L2:.3f} N/mm²`  
-"
-            f"**β_L2:** `{res.beta_L2:.3f}`"
-        )
+        st.write(f"**f_ctd,L1:** `{res.f_ctd_L1:.3f} N/mm²`")
+        st.write(f"**f_ctd,L2:** `{res.f_ctd_L2:.3f} N/mm²`")
+        st.write(f"**β_L2:** `{res.beta_L2:.3f}`")
 
     # Beide Diagramme (Moments & Compression Height)
     ch1, ch2 = st.columns(2)
