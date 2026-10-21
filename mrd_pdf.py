@@ -1,6 +1,6 @@
 """
 mrd_pdf.py - Falconix Engineering GmbH
-Generiert den 7-seitigen prüffähigen PDF-Nachweis "Biegewiderstand" (MRd)
+Generiert den 7-seitigen prueffaehigen PDF-Nachweis "Biegewiderstand" (MRd)
 im exakten Falconix-Originaldesign mit WeasyPrint.
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import weasyprint
 from mrd_core import MRdResult, ActiveSteelLayer
 
@@ -34,8 +35,70 @@ def _get_logo_data_uri(logo_path: str = "extracted_Image12.jpg") -> str:
     return ""
 
 
+def make_pdf_cross_section_sketch(res: MRdResult) -> str:
+    """Seite 2 unten: Querschnittsskizze mit Bewehrungslagen t1, b1, h, h/2, z-Achse wie bei Antonio."""
+    fig, ax = plt.subplots(figsize=(6.8, 2.1), dpi=150)
+    w_box = 100.0
+    h_box = 36.0
+    rect = patches.Rectangle((0, 0), w_box, h_box, linewidth=1.2, edgecolor="#222222", facecolor="#eaeded")
+    ax.add_patch(rect)
+
+    # Mittellinie (strichpunktiert)
+    ax.plot([-5, w_box + 26], [h_box / 2, h_box / 2], color="#444444", linestyle="-.", linewidth=0.8)
+
+    # Obere & untere Bewehrungspunkte falls vorhanden
+    xs_bars = np.linspace(8, w_box - 8, 8)
+    if any(k in res.steel_layers for k in ("t1", "t2", "t3")):
+        y_t = h_box - 5.5
+        ax.plot(xs_bars, [y_t] * len(xs_bars), "o", color="#111111", markersize=4.5)
+        ax.plot([xs_bars[-1], w_box + 8], [y_t, y_t], color="#333333", linewidth=0.7)
+        ax.text(w_box + 9, y_t, "$t_1$", va="center", fontsize=8.5)
+        ax.plot([-6, 8], [y_t, y_t], color="#333333", linewidth=0.7)
+        ax.plot([-6, 0], [h_box, h_box], color="#333333", linewidth=0.7)
+        ax.text(-5, h_box + 2.5, "$c_{t1}$", ha="center", fontsize=8)
+
+    if any(k in res.steel_layers for k in ("b1", "b2", "b3")):
+        y_b = 5.5
+        ax.plot(xs_bars, [y_b] * len(xs_bars), "o", color="#111111", markersize=4.5)
+        ax.plot([xs_bars[-1], w_box + 8], [y_b, y_b], color="#333333", linewidth=0.7)
+        ax.text(w_box + 9, y_b, "$b_1$", va="center", fontsize=8.5)
+        ax.plot([-6, 8], [y_b, y_b], color="#333333", linewidth=0.7)
+        ax.plot([-6, 0], [0, 0], color="#333333", linewidth=0.7)
+        ax.text(-5, -5.5, "$c_{b1}$", ha="center", fontsize=8)
+
+    # z-Achse und Bemaßung rechts (h/2, h/2, h)
+    ax.annotate("", xy=(w_box + 22, h_box + 8), xytext=(w_box + 22, h_box / 2),
+                arrowprops=dict(arrowstyle="->", color="#222222", lw=0.9))
+    ax.text(w_box + 24, h_box + 6, "z", fontsize=8.5)
+
+    # h/2 Pfeile
+    ax.annotate("", xy=(w_box + 26, h_box), xytext=(w_box + 26, h_box / 2),
+                arrowprops=dict(arrowstyle="<->", color="#222222", lw=0.8))
+    ax.text(w_box + 28, h_box * 0.75, "h/2", va="center", fontsize=8)
+    ax.annotate("", xy=(w_box + 26, h_box / 2), xytext=(w_box + 26, 0),
+                arrowprops=dict(arrowstyle="<->", color="#222222", lw=0.8))
+    ax.text(w_box + 28, h_box * 0.25, "h/2", va="center", fontsize=8)
+
+    # Gesamt-h Pfeil
+    ax.annotate("", xy=(w_box + 38, h_box), xytext=(w_box + 38, 0),
+                arrowprops=dict(arrowstyle="<->", color="#222222", lw=0.8))
+    ax.text(w_box + 40, h_box / 2, "h", va="center", fontsize=8.5)
+
+    # Breite b unten
+    ax.plot([0, 0], [0, -8], color="#333333", linewidth=0.7)
+    ax.plot([w_box, w_box], [0, -8], color="#333333", linewidth=0.7)
+    ax.annotate("", xy=(w_box, -6), xytext=(0, -6),
+                arrowprops=dict(arrowstyle="<->", color="#222222", lw=0.8))
+    ax.text(w_box / 2, -4.5, "b", ha="center", fontsize=9)
+
+    ax.set_xlim(-12, w_box + 46)
+    ax.set_ylim(-10, h_box + 10)
+    ax.axis("off")
+    return _fig_to_base64_svg(fig)
+
+
 def make_concrete_chart(res: MRdResult) -> str:
-    fig, ax = plt.subplots(figsize=(7.2, 2.7), dpi=150)
+    fig, ax = plt.subplots(figsize=(7.2, 2.5), dpi=150)
     eps = np.linspace(0.0, 3.5, 300)
     f_cd = res.f_cd
     sig = np.where(eps <= 2.0, f_cd * (1.0 - (1.0 - eps / 2.0) ** 2), f_cd)
@@ -55,6 +118,30 @@ def make_concrete_chart(res: MRdResult) -> str:
     return _fig_to_base64_svg(fig)
 
 
+def make_steel_chart(res: MRdResult) -> str:
+    """Seite 3 unten: Bilineares Spannungs-Dehnungs-Diagramm Betonstahl (-25 bis +25 ‰) wie bei Antonio."""
+    fig, ax = plt.subplots(figsize=(7.2, 2.5), dpi=150)
+    if res.has_rebar and res.f_yd is not None and res.E_s is not None:
+        eps_y = res.f_yd / res.E_s
+        eps = [-25.0, -eps_y, 0.0, eps_y, 25.0]
+        sig = [-res.f_yd, -res.f_yd, 0.0, res.f_yd, res.f_yd]
+        ax.plot(eps, sig, color="#3b6291", linewidth=2.0)
+    ax.set_title("Betonstahl", fontsize=12, color="#444444", pad=10)
+    ax.set_xlabel("Dehnung [‰]", fontsize=9, color="#444444")
+    ax.set_ylabel("Spannung [N/mm²]", fontsize=9, color="#444444")
+    ax.set_xlim(-25.0, 25.0)
+    ax.set_ylim(-500.0, 500.0)
+    ax.axhline(0, color="#999999", linewidth=0.8)
+    ax.axvline(0, color="#999999", linewidth=0.8)
+    ax.grid(True, which="major", color="#d9d9d9", linewidth=0.7)
+    ax.minorticks_on()
+    ax.grid(True, which="minor", color="#efefef", linewidth=0.4)
+    ax.tick_params(labelsize=8, colors="#444444")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#cccccc")
+    return _fig_to_base64_svg(fig)
+
+
 def make_fiber_chart(res: MRdResult) -> str:
     fig, ax = plt.subplots(figsize=(7.2, 2.5), dpi=150)
     eps = [0.0, 0.1, 3.5, 25.0]
@@ -64,7 +151,7 @@ def make_fiber_chart(res: MRdResult) -> str:
     ax.set_xlabel("Dehnung [‰]", fontsize=9, color="#444444")
     ax.set_ylabel("Spannung [N/mm²]", fontsize=9, color="#444444")
     ax.set_xlim(0.0, 25.0)
-    y_max = max(0.5, round(max(sig) * 1.2 + 0.05, 1)) if max(sig) > 0 else 0.5
+    y_max = max(0.5, round(max(sig) * 1.15 + 0.05, 1)) if max(sig) > 0 else 0.5
     ax.set_ylim(0.0, y_max)
     ax.grid(True, which="major", color="#d9d9d9", linewidth=0.7)
     ax.minorticks_on()
@@ -141,7 +228,6 @@ def fmt_num(val: Optional[float], decimals: int = 3, na_str: str = "") -> str:
 
 
 def _render_header(title: str, logo_uri: str) -> str:
-    """Erzeugt eine 2-spaltige Kopftabelle: Titel linksbündig, Falconix-Logo fest rechtsbündig."""
     return f"""
     <table class="header-table">
       <tr>
@@ -154,7 +240,9 @@ def _render_header(title: str, logo_uri: str) -> str:
 
 def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "extracted_Image12.jpg") -> str:
     logo_uri = _get_logo_data_uri(logo_path)
+    sketch_section = make_pdf_cross_section_sketch(res)
     chart_concrete = make_concrete_chart(res)
+    chart_steel = make_steel_chart(res)
     chart_fiber = make_fiber_chart(res)
     chart_beta = make_beta_l2_mini_chart(res)
     chart_m_neg, chart_m_pos = make_moment_strain_charts(res)
@@ -183,9 +271,9 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
                 "label": k_disp,
                 "d1": fmt_num(lay.diam_1, 0) if (lay and lay.diam_1 > 0) else "",
                 "d2": fmt_num(lay.diam_2, 0) if (lay and lay.diam_2 > 0) else "",
-                "s": fmt_num(lay.spacing, 0) if (lay and lay.as_cm2_m > 0) else "",
+                "s": fmt_num(lay.spacing, 1) if (lay and lay.as_cm2_m > 0) else "",
                 "as": fmt_num(lay.as_cm2_m, 2) if (lay and lay.as_cm2_m > 0) else "",
-                "c": fmt_num(lay.c_mm, 0) if (lay and lay.as_cm2_m > 0) else "",
+                "c": fmt_num(lay.c_mm, 1) if (lay and lay.as_cm2_m > 0) else "",
                 "z": fmt_num(lay.z_from_mid_mm, 1) if (lay and lay.as_cm2_m > 0) else "",
             })
 
@@ -198,16 +286,16 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
             "name": label_map[i],
             "n_z": fmt_num(rn.z_mm, 1),
             "n_e": fmt_num(rn.eps_permille, 3) if i > 1 else "",
-            "n_s": fmt_num(rn.sigma_mpa, 2) if i > 1 else "",
+            "n_s": fmt_num(rn.sigma_mpa, 3) if i > 1 else "",
             "n_f": fmt_num(rn.f_kn_m, 2),
             "p_z": fmt_num(rp.z_mm, 1),
             "p_e": fmt_num(rp.eps_permille, 3) if i > 1 else "",
-            "p_s": fmt_num(rp.sigma_mpa, 2) if i > 1 else "",
+            "p_s": fmt_num(rp.sigma_mpa, 3) if i > 1 else "",
             "p_f": fmt_num(rp.f_kn_m, 2),
         })
 
     bew_konzept_de = "Reine Stahlfaserbewehrung" if not res.has_rebar else (
-        "Kombinierte Bewehrung (Stahlfaserbeton + Betonstahl)" if res.has_fibers else "Reine Betonstahlbewehrung"
+        "Kombibewehrung" if res.has_fibers else "Reine Betonstahlbewehrung"
     )
     t1_lay = res.steel_layers.get("t1")
     b1_lay = res.steel_layers.get("b1")
@@ -335,9 +423,9 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
   }}
   .chart-container {{
     text-align: center;
-    margin-top: 12px;
+    margin-top: 10px;
     border: 0.8px solid #d0d0d0;
-    padding: 8px;
+    padding: 6px;
   }}
   .mrd-highlight {{
     border-top: 1.5px solid #222;
@@ -446,15 +534,12 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
     <div style="width: 31%; font-size: 8.5pt; padding-top: 10px;">
       <div style="border: 1px solid #aaa; padding: 8px; text-align: center; background: #fcfcfc;">
         <strong>A<sub>s</sub> = (1 / s) · (π / 4) · (Ø<sub>1</sub>² + Ø<sub>2</sub>²)</strong>
-        <hr style="border: 0; border-top: 1px dashed #ccc; margin: 8px 0;">
-        <div style="font-size: 8pt; color: #444; text-align: left;">
-          • <strong>z</strong> bezogen auf Bauteilmitte (h/2)<br/>
-          • <strong>+z</strong>: oberhalb Mitte (t<sub>1</sub>..t<sub>3</sub>)<br/>
-          • <strong>-z</strong>: unterhalb Mitte (b<sub>1</sub>..b<sub>3</sub>)<br/>
-          • Berechnungsrichtung: <strong>{inp.tensile_direction}</strong>
-        </div>
       </div>
     </div>
+  </div>
+
+  <div style="text-align: center; margin-top: 18px;">
+    <img src="{sketch_section}" style="width: 92%; max-height: 155px;">
   </div>
 </div>
 
@@ -478,13 +563,16 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
         <tr><td>f<sub>yk</sub></td><td class="val-cell">{fmt_num(res.f_yk, 3, "n.a.")}</td><td class="unit-cell">N/mm²</td></tr>
         <tr><td>γ<sub>s</sub></td><td class="val-cell">{fmt_num(inp.gamma_s, 2) if res.has_rebar else "n.a."}</td><td class="unit-cell"></td></tr>
         <tr><td>f<sub>yd</sub></td><td class="val-cell">{fmt_num(res.f_yd, 3, "n.a.")}</td><td class="unit-cell">N/mm²</td></tr>
-        <tr><td>E<sub>s</sub></td><td class="val-cell">{fmt_num(res.E_s, 3, "n.a.")}</td><td class="unit-cell">kN/mm²</td></tr>
+        <tr><td>E<sub>s</sub></td><td class="val-cell">{fmt_num(res.E_s, 1, "n.a.")}</td><td class="unit-cell">kN/mm²</td></tr>
       </table>
     </div>
   </div>
 
-  <div class="chart-container" style="margin-top: 24px;">
-    <img src="{chart_concrete}" style="width: 100%; max-height: 230px;">
+  <div class="chart-container" style="margin-top: 14px;">
+    <img src="{chart_concrete}" style="width: 100%; max-height: 205px;">
+  </div>
+  <div class="chart-container" style="margin-top: 12px;">
+    <img src="{chart_steel}" style="width: 100%; max-height: 205px;">
   </div>
 </div>
 
@@ -666,14 +754,14 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
   <div class="section-hdr">Bewehrung</div>
   <table class="kv-table" style="margin-bottom: 6px;">
-    <tr><td style="width: 35%;">Streckgrenze f<sub>yk</sub></td><td class="val-cell" style="width: 13%;">{fmt_num(res.f_yk, 0, "n.a.")}</td><td class="unit-cell">N/mm²</td><td></td></tr>
+    <tr><td style="width: 35%;">Streckgrenze f<sub>yk</sub></td><td class="val-cell" style="width: 13%;">{fmt_num(res.f_yk, 3, "n.a.")}</td><td class="unit-cell">N/mm²</td><td></td></tr>
   </table>
   <div class="two-col" style="margin-bottom: 14px;">
     <div class="col-half">
       <strong>Bewehrung A<sub>s,oben</sub></strong>
       <table class="kv-table">
-        <tr><td>Stabdurchmesser d<sub>s</sub></td><td class="val-cell">{fmt_num(t1_lay.diam_1, 0) if t1_lay else "n.a."}</td><td class="unit-cell">mm</td></tr>
-        <tr><td>Stababstand s</td><td class="val-cell">{fmt_num(t1_lay.spacing, 0) if t1_lay else "n.a."}</td><td class="unit-cell">mm</td></tr>
+        <tr><td>Stabdurchmesser d<sub>s</sub></td><td class="val-cell">{fmt_num(t1_lay.diam_1, 0) if (t1_lay and inp.rebar_definition == "Simplified") else ("(*)" if t1_lay else "n.a.")}</td><td class="unit-cell">mm</td></tr>
+        <tr><td>Stababstand s</td><td class="val-cell">{fmt_num(t1_lay.spacing, 0) if (t1_lay and inp.rebar_definition == "Simplified") else ("(*)" if t1_lay else "n.a.")}</td><td class="unit-cell">mm</td></tr>
         <tr><td>Stahlquerschnitt A<sub>s</sub></td><td class="val-cell">{fmt_num(res.as_top_total_cm2_m, 2) if has_top_rebar else "n.a."}</td><td class="unit-cell">cm²/m</td></tr>
         <tr><td>Betondeckung c<sub>nom</sub></td><td class="val-cell">{cov_top_str}</td><td class="unit-cell">mm</td></tr>
       </table>
@@ -681,8 +769,8 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
     <div class="col-half">
       <strong>Bewehrung A<sub>s,unten</sub></strong>
       <table class="kv-table">
-        <tr><td>Stabdurchmesser d<sub>s</sub></td><td class="val-cell">{fmt_num(b1_lay.diam_1, 0) if b1_lay else "n.a."}</td><td class="unit-cell">mm</td></tr>
-        <tr><td>Stababstand s</td><td class="val-cell">{fmt_num(b1_lay.spacing, 0) if b1_lay else "n.a."}</td><td class="unit-cell">mm</td></tr>
+        <tr><td>Stabdurchmesser d<sub>s</sub></td><td class="val-cell">{fmt_num(b1_lay.diam_1, 0) if (b1_lay and inp.rebar_definition == "Simplified") else ("(*)" if b1_lay else "n.a.")}</td><td class="unit-cell">mm</td></tr>
+        <tr><td>Stababstand s</td><td class="val-cell">{fmt_num(b1_lay.spacing, 0) if (b1_lay and inp.rebar_definition == "Simplified") else ("(*)" if b1_lay else "n.a.")}</td><td class="unit-cell">mm</td></tr>
         <tr><td>Stahlquerschnitt A<sub>s</sub></td><td class="val-cell">{fmt_num(res.as_bottom_total_cm2_m, 2) if has_bot_rebar else "n.a."}</td><td class="unit-cell">cm²/m</td></tr>
         <tr><td>Betondeckung c<sub>nom</sub></td><td class="val-cell">{cov_bot_str}</td><td class="unit-cell">mm</td></tr>
       </table>
