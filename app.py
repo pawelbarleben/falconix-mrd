@@ -5,6 +5,7 @@ inkl. Mitarbeiter-Login-Zuordnung, dynamischer Querschnittsgrafik, Momenten- & D
 Simplified & Full Bewehrungsmodus (mit Stabbündeln) und 7-seitigem WeasyPrint-PDF-Export.
 """
 import datetime
+import math
 import tempfile
 import numpy as np
 import pandas as pd
