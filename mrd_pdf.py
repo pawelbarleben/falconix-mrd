@@ -1,7 +1,7 @@
 """
 mrd_pdf.py - Falconix Engineering GmbH
 Generiert den 7-seitigen prüffähigen PDF-Nachweis "Biegewiderstand" (MRd)
-mit WeasyPrint (im perfekten originalen Falconix-Layout).
+im exakten Falconix-Originaldesign mit WeasyPrint.
 """
 from __future__ import annotations
 import base64
@@ -13,25 +13,6 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-# macOS Workaround: Pango/GObject-Pfade für WeasyPrint direkt im Python-Prozess bekannt machen
-import ctypes.util
-from ctypes import CDLL
-for _libname in ['pango-1.0-0', 'pango-1.0', 'libpango-1.0-0', 'gobject-2.0-0', 'libgobject-2.0-0']:
-    _path = ctypes.util.find_library(_libname)
-    if _path:
-        try:
-            CDLL(_path)
-            break
-        except Exception:
-            pass
-# Fallback für Standard-Homebrew-Pfade auf Apple Silicon & Intel Macs
-if not ctypes.util.find_library('pango-1.0'):
-    for _hb_path in ['/opt/homebrew/lib/libpango-1.0.dylib', '/usr/local/lib/libpango-1.0.dylib']:
-        if os.path.exists(_hb_path):
-            os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = os.path.dirname(_hb_path)
-            break
-
 import weasyprint
 from mrd_core import MRdResult, ActiveSteelLayer
 
@@ -159,6 +140,18 @@ def fmt_num(val: Optional[float], decimals: int = 3, na_str: str = "") -> str:
     return f"{val:.{decimals}f}".replace(".", ",")
 
 
+def _render_header(title: str, logo_uri: str) -> str:
+    """Erzeugt eine 2-spaltige Kopftabelle: Titel linksbündig, Falconix-Logo fest rechtsbündig."""
+    return f"""
+    <table class="header-table">
+      <tr>
+        <td class="header-title-cell">{title}</td>
+        <td class="header-logo-cell"><img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING"></td>
+      </tr>
+    </table>
+    """
+
+
 def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "extracted_Image12.jpg") -> str:
     logo_uri = _get_logo_data_uri(logo_path)
     chart_concrete = make_concrete_chart(res)
@@ -187,7 +180,6 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
             lay: Optional[ActiveSteelLayer] = res.steel_layers.get(k_internal)
             rebar_rows_p2.append({
                 "group": group_label if idx == 0 else "",
-                "show_group": idx == 0,
                 "label": k_disp,
                 "d1": fmt_num(lay.diam_1, 0) if (lay and lay.diam_1 > 0) else "",
                 "d2": fmt_num(lay.diam_2, 0) if (lay and lay.diam_2 > 0) else "",
@@ -257,23 +249,26 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
   .page:last-child {{
     page-break-after: auto;
   }}
-  .header-bar {{
-    position: relative;
+  table.header-table {{
+    width: 100%;
+    border-collapse: collapse;
     border-bottom: 2.2px solid #222;
-    padding-bottom: 6px;
     margin-bottom: 14px;
-    min-height: 40px;
   }}
-  .header-title {{
+  table.header-table td.header-title-cell {{
     font-size: 16pt;
     font-weight: 700;
-    padding-top: 4px;
+    text-align: left;
+    vertical-align: bottom;
+    padding-bottom: 6px;
+  }}
+  table.header-table td.header-logo-cell {{
+    text-align: right;
+    vertical-align: bottom;
+    padding-bottom: 6px;
   }}
   .header-logo {{
-    position: absolute;
-    top: 0;
-    right: 0;
-    height: 35px;
+    height: 36px;
   }}
   .section-hdr {{
     font-weight: 700;
@@ -360,10 +355,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 1: DECKBLATT ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Biegewiderstand</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Biegewiderstand", logo_uri)}
 
   <div class="two-col" style="margin-top: 25px;">
     <div class="col-half">
@@ -402,10 +394,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 2: EINGANGSWERTE ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Eingangswerte</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Eingangswerte", logo_uri)}
 
   <div class="two-col">
     <div class="col-half">
@@ -471,10 +460,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 3: BAUSTOFFE ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Baustoffe</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Baustoffe", logo_uri)}
 
   <div class="two-col">
     <div class="col-half">
@@ -504,10 +490,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 4: STAHLFASERN ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Stahlfasern</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Stahlfasern", logo_uri)}
 
   <div class="two-col">
     <div style="width: 64%;">
@@ -564,10 +547,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 5: BIEGEWIDERSTAND ERGEBNISSE ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Biegewiderstand</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Biegewiderstand", logo_uri)}
 
   <div class="two-col">
     <div class="col-half">
@@ -637,10 +617,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 6: MOMENT - DEHNUNGSKURVEN ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Moment - Dehnungskurven</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Moment - Dehnungskurven", logo_uri)}
 
   <div class="chart-container" style="margin-top: 10px;">
     <img src="{chart_m_neg}" style="width: 100%; max-height: 290px;">
@@ -653,10 +630,7 @@ def generate_mrd_pdf(res: MRdResult, output_pdf_path: str, logo_path: str = "ext
 
 <!-- ==================== SEITE 7: ZUSAMMENFASSUNG ==================== -->
 <div class="page">
-  <div class="header-bar">
-    <div class="header-title">Zusammenfassung:</div>
-    <img class="header-logo" src="{logo_uri}" alt="FALCONIX ENGINEERING">
-  </div>
+  {_render_header("Zusammenfassung:", logo_uri)}
 
   <p style="font-size: 8.8pt; line-height: 1.45; margin-bottom: 14px;">
     Diese Berechnung dient als Einzelnachweis innerhalb einer Gesamtstatik.<br/>
